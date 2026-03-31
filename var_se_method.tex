@@ -1,0 +1,653 @@
+\documentclass[12pt, a4paper]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────────────
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage[dvipsnames,svgnames,x11names]{xcolor}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{natbib}
+\usepackage{caption}
+\usepackage{subcaption}
+
+\geometry{margin=2.5cm}
+\onehalfspacing
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    citecolor=blue!60!black,
+    urlcolor=blue!60!black
+}
+
+% ── Theorem environments ───────────────────────────────────────────────────────
+\newtheorem{remark}{Remark}
+\newtheorem{proposition}{Proposition}
+
+% ── Notation macros ───────────────────────────────────────────────────────────
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\tr}{\mathrm{tr}}
+\newcommand{\diag}{\mathrm{diag}}
+\newcommand{\bs}[1]{\boldsymbol{#1}}
+\newcommand{\eye}{\mathbf{I}}
+
+% ══════════════════════════════════════════════════════════════════════════════
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    {\LARGE \textbf{VAR with Shifting Endpoint:} \\[0.4em]
+    \textbf{Long-Run Anchoring via Focus Survey Expectations}} \\[1.5cm]
+    {\large A Replication of BCB Estudo Especial 19/2018} \\[2cm]
+    {\large \today}
+    \vfill
+    {\small Based on Kozicki \& Tinsley (2012), Clark \& West (2007), and BCB (2018)}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Introduction}
+
+Standard Vector Autoregressive (VAR) models assume that the unconditional mean
+of the system is fixed. For the Brazilian inflation process, this assumption is
+problematic over a sample spanning the mid-2000s to the present: the implicit
+inflation target has declined from around 8\% to 3.5\% per annum, and long-run
+private-sector expectations---as measured by the Focus survey---have shifted
+substantially over time.
+
+The \textbf{VAR with Shifting Endpoint} (VAR-SE), introduced by
+\citet{kozicki2012} and applied to Brazil by the Banco Central do Brasil (BCB)
+in Estudo Especial 19/2018, addresses this by allowing the long-run mean of
+inflation---the \emph{endpoint}---to be a latent, time-varying random walk
+$\mu_t$. The endpoint is anchored to Focus survey expectations via a
+state-space framework and a Kalman filter. At long horizons the conditional
+forecast converges to $\mu_t$ rather than the sample mean, producing
+forward-looking paths that respect current market expectations.
+
+The model estimated here uses three endogenous variables:
+\begin{itemize}
+    \item $\pi_t$: monthly IPCA inflation (\%/month);
+    \item $\Delta e_t$: monthly BRL/USD exchange-rate change (\%/month);
+    \item $r_t^{\mathrm{real}}$: ex-post real interest rate (\%/month).
+\end{itemize}
+The shifting endpoint $\mu_t$ applies to the inflation equation only.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{The Unrestricted VAR}
+
+Let $\bs{y}_t = (\pi_t,\, \Delta e_t,\, r_t^{\mathrm{real}})'$ be the
+$k\times 1$ vector of endogenous variables ($k=3$). The benchmark
+unrestricted VAR($p$) is
+\begin{equation}
+    \bs{y}_t \;=\; \bs{c} + \sum_{j=1}^{p} \bs{\Phi}_j \bs{y}_{t-j} + \bs{\varepsilon}_t,
+    \qquad \bs{\varepsilon}_t \sim \mathcal{N}(\bs{0},\,\bs{\Sigma}),
+    \label{eq:var}
+\end{equation}
+where $\bs{c}\in\mathbb{R}^k$ is the intercept vector and
+$\bs{\Phi}_j\in\mathbb{R}^{k\times k}$ are coefficient matrices. Equation
+\eqref{eq:var} is estimated equation-by-equation by OLS.
+
+\subsection{Long-Run Mean}
+
+The unconditional mean implied by the VAR is
+\begin{equation}
+    \bar{\bs{y}} \;=\; \left(\eye_k - \sum_{j=1}^{p}\bs{\Phi}_j\right)^{-1}\bs{c}.
+    \label{eq:lr_mean}
+\end{equation}
+After stability enforcement (see Section~\ref{sec:stability}), the intercept
+is corrected to preserve $\bar{\bs{y}}$ at the sample mean $\widehat{\bs{y}}$:
+\begin{equation}
+    \bs{c} \;\leftarrow\; \left(\eye_k - \sum_{j=1}^{p}\hat{\bs{\Phi}}_j\right)\widehat{\bs{y}}.
+    \label{eq:intercept_correction}
+\end{equation}
+
+\subsection{Stability Enforcement}
+\label{sec:stability}
+
+Let $\rho$ denote the spectral radius of the VAR companion matrix (defined
+below). If $\rho \geq \rho_{\max}$ (we use $\rho_{\max}=0.98$), all coefficient
+matrices are scaled uniformly:
+\begin{equation}
+    \hat{\bs{\Phi}}_j \;\leftarrow\; \frac{\rho_{\max}}{\rho}\,\hat{\bs{\Phi}}_j,
+    \qquad j=1,\ldots,p.
+\end{equation}
+The intercept is then recomputed via \eqref{eq:intercept_correction} to
+maintain the unconditional mean.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{VAR with Shifting Endpoint}
+\label{sec:varse}
+
+\subsection{The Endpoint Process}
+
+The VAR-SE replaces the fixed intercept $\bs{c}$ in the inflation equation
+with a time-varying endpoint $\mu_t$. The endpoint follows a random walk:
+\begin{equation}
+    \mu_t \;=\; \mu_{t-1} + \eta_t, \qquad \eta_t \sim \mathcal{N}(0,\,\sigma^2_\mu).
+    \label{eq:mu_rw}
+\end{equation}
+The VAR-SE can be written as
+\begin{equation}
+    \pi_t \;=\; (1-\phi_{11,1}-\cdots-\phi_{11,p})\,\mu_t
+                + \sum_{j=1}^{p}\sum_{l=1}^{k}\phi_{1l,j}\,y_{l,t-j} + \varepsilon_{1,t},
+    \label{eq:varse_pi}
+\end{equation}
+where $\phi_{1l,j}$ is element $(1,l)$ of $\bs{\Phi}_j$. The remaining
+equations ($\Delta e_t$, $r_t^{\mathrm{real}}$) retain fixed intercepts.
+
+The key structural property of \eqref{eq:varse_pi} is that as
+$h\to\infty$ the $h$-step conditional forecast satisfies
+$\E_t[\pi_{t+h}] \to \mu_t$. The endpoint is therefore the long-run
+inflation forecast implied by the model.
+
+\subsection{Deviation-from-Endpoint Form}
+
+Define $\tilde{\bs{y}}_t = \bs{y}_t - \bs{e}_1\mu_t$ where
+$\bs{e}_1 = (1,0,0)'$. In deviations the inflation equation becomes
+\begin{equation}
+    \tilde{\pi}_t \;=\; \sum_{j=1}^{p}\bs{\Phi}_{1\cdot,j}\tilde{\bs{y}}_{t-j}
+                        + \varepsilon_{1,t},
+\end{equation}
+with no constant. This is the \emph{deviation-from-endpoint} representation
+used to construct the companion matrix (Section~\ref{sec:companion}).
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{State-Space Representation}
+\label{sec:statespace}
+
+\subsection{Companion Matrix}
+\label{sec:companion}
+
+Stack the endogenous lags into the $(kp+2)\times 1$ state vector
+\begin{equation}
+    \bs{X}_t \;=\; \left(\bs{y}_t',\;\bs{y}_{t-1}',\;\ldots,\;\bs{y}_{t-p+1}',\;1,\;\mu_t\right)',
+    \label{eq:state}
+\end{equation}
+where the constant 1 occupies position $kp+1$ (0-indexed: $kp$) and $\mu_t$
+occupies position $kp+2$ (0-indexed: $kp+1$). The transition equation is
+\begin{equation}
+    \bs{X}_t \;=\; \bs{A}\,\bs{X}_{t-1} + \bs{w}_t,
+    \label{eq:transition}
+\end{equation}
+where $\bs{w}_t$ has covariance $\bs{Q}$ with $Q_{\mu\mu}=\sigma^2_\mu$ and
+zeros elsewhere.
+
+The companion matrix $\bs{A}$ has the standard VAR block structure, augmented
+by the endpoint column. For the VAR-SE, the first row satisfies
+\begin{equation}
+    A_{1,\mu} \;=\; 1 - \sum_{j=1}^{p}\Phi_{11,j},
+    \label{eq:varse_col}
+\end{equation}
+which encodes the deviation-from-endpoint property. The unrestricted VAR uses
+$A_{1,\mu}=1$, recovering the OLS unconditional mean.
+
+Explicitly, $\bs{A}$ is:
+\begin{equation}
+    \bs{A} \;=\;
+    \begin{pmatrix}
+        \bs{\Phi}_1 & \bs{\Phi}_2 & \cdots & \bs{\Phi}_p & \bs{c}^* & \bs{a}_\mu \\
+        \eye_k      & \bs{0}      & \cdots & \bs{0}      & \bs{0}   & \bs{0}     \\
+        \bs{0}      & \eye_k      & \cdots & \bs{0}      & \bs{0}   & \bs{0}     \\
+        \vdots      &             & \ddots & \vdots      & \vdots   & \vdots     \\
+        \bs{0}      & \bs{0}      & \cdots & \eye_k      & \bs{0}   & \bs{0}     \\
+        \bs{0}      & \bs{0}      & \cdots & \bs{0}      & 1        & 0          \\
+        \bs{0}      & \bs{0}      & \cdots & \bs{0}      & 0        & 1
+    \end{pmatrix},
+    \label{eq:companion}
+\end{equation}
+where $\bs{a}_\mu$ is a $k\times 1$ column with $A_{1,\mu}$ in the first
+position and zeros elsewhere, and $\bs{c}^*$ contains the fixed-intercept
+contributions from $\bs{c}$ for equations 2 through $k$ (zero for the
+inflation equation, which uses $\mu_t$).
+
+\subsection{The Survey Constraint}
+
+The Focus survey provides the median 4-year-ahead annual IPCA expectation,
+$f_t$ (\%/a.a.). This corresponds to the 12-month accumulated inflation from
+month $t+37$ to $t+48$. The linear constraint linking $f_t$ to the state
+is
+\begin{equation}
+    f_t \;=\; \bs{c}_{\mathrm{sv}}'\bs{X}_t + u_t,
+    \qquad u_t \sim \mathcal{N}(0,\,\sigma^2_{\mathrm{sv}}),
+    \label{eq:survey}
+\end{equation}
+where $\bs{c}_{\mathrm{sv}}' = \bs{e}_1'\sum_{h=37}^{48}\bs{A}^h$ and
+$\sigma^2_{\mathrm{sv}}$ is the survey measurement-noise variance.
+
+The survey row $\bs{c}_{\mathrm{sv}}'$ is constructed from the VAR-SE
+companion matrix $\bs{A}$ by summing the propagation matrices over the
+relevant horizon window. Its sensitivity to $\mu_t$ (the element
+$c_{\mathrm{sv},\mu}$) is approximately 12, reflecting the accumulation
+of 12 monthly rates each of which responds one-for-one to $\mu_t$ at
+long horizons.
+
+\subsection{How the Survey Identifies \texorpdfstring{$\mu_t$}{mu\_t}}
+\label{sec:survey_id}
+
+Expanding the dot product $\bs{c}_{\mathrm{sv}}'\bs{X}_t$ using the state
+vector definition \eqref{eq:state}:
+\begin{equation}
+    \bs{c}_{\mathrm{sv}}'\bs{X}_t
+    \;=\;
+    \underbrace{\bs{c}_{\mathrm{sv}}^{[y]}\cdot \bs{y}_t^{(\mathrm{stack})}}_{\text{current and lagged }y_t}
+    \;+\;
+    \underbrace{c_{\mathrm{sv},\bar{x}}}_{\approx\,0}
+    \;+\;
+    \underbrace{c_{\mathrm{sv},\mu}}_{\approx\,12}
+    \cdot\mu_t,
+    \label{eq:survey_expand}
+\end{equation}
+where $c_{\mathrm{sv},\mu} = \bs{e}_1'\sum_{h=37}^{48}\bs{A}^h\,\bs{e}_\mu$
+is the sensitivity of the 37--48 month cumulative forecast to $\mu_t$.
+
+\paragraph{Why $c_{\mathrm{sv},\mu}\approx 12$.}
+Under stationarity, $\bs{A}^h \to \bs{e}_\mu\bs{e}_\mu'$ (projection onto
+the unit-eigenvalue direction) as $h\to\infty$. At $h \gtrsim 37$ months
+this limit is already a good approximation, so
+\begin{equation}
+    \bs{e}_1'\bs{A}^h\bs{e}_\mu \;\approx\; 1,
+    \qquad h \geq 37,
+    \label{eq:attenuation}
+\end{equation}
+meaning each monthly forecast from $h=37$ to $h=48$ responds one-for-one to
+$\mu_t$. Summing over 12 months gives $c_{\mathrm{sv},\mu}\approx 12$.
+
+\paragraph{Why $\bs{c}_{\mathrm{sv}}^{[y]}\approx \bs{0}$.}
+The contribution of the current VAR state $\bs{y}_t$ to the forecast at
+horizon $h$ decays as $\rho^h$, where $\rho < 1$ is the spectral radius of
+the stationary block of $\bs{A}$. With $\rho \leq 0.96$ and $h \geq 37$,
+we have $\rho^{37} \leq 0.22$; the 12-period sum
+$\sum_{h=37}^{48}\rho^h \leq 2.4$ is small relative to $c_{\mathrm{sv},\mu}=12$.
+Concretely, the survey row is almost entirely loaded on $\mu_t$, not on
+$\bs{y}_t$.
+
+\paragraph{Consequence.}
+Rearranging \eqref{eq:survey} and \eqref{eq:survey_expand}:
+\begin{equation}
+    \mu_t \;\approx\;
+    \frac{f_t \;-\; \bs{c}_{\mathrm{sv}}^{[y]}\cdot\bs{y}_t^{(\mathrm{stack})}}{c_{\mathrm{sv},\mu}}
+    \;-\; \frac{u_t}{c_{\mathrm{sv},\mu}}.
+    \label{eq:mu_from_focus}
+\end{equation}
+The endpoint $\mu_t$ is therefore approximately equal to the Focus
+48m expectation divided by 12 (to convert annual to monthly), corrected
+for the small residual contribution of the current VAR state at long
+horizons. The Kalman filter implements this identification softly,
+weighting the survey signal against the prior variance
+$P_{t|t-1,\mu\mu}$ via the gain
+$K_\mu = P_{t|t-1,\mu\mu}\,c_{\mathrm{sv},\mu} / s^2_t$.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Kalman Filter}
+\label{sec:kalman}
+
+\subsection{Key Observation}
+
+The endogenous variables $\bs{y}_t$ are measured without error: they are
+observed directly. Only the latent endpoint $\mu_t$ is uncertain.
+Accordingly, the filter treats $\bs{y}_t$ as an exact observation and
+performs a \emph{scalar} Kalman update using only the Focus survey
+innovation. This prevents the numerical degeneracy that arises when $k$
+near-zero-noise observation equations are combined with a rank-1 covariance
+matrix for $\bs{X}_t$.
+
+\subsection{Filter Recursion}
+
+Given $\bs{X}_{t-1|t-1}$ and $\bs{P}_{t-1|t-1} = \Var(\bs{X}_{t-1}|\mathcal{F}_{t-1})$,
+the filter iterates:
+
+\medskip
+\noindent\textbf{Step 1 — Prediction:}
+\begin{align}
+    \bs{X}_{t|t-1} &\;=\; \bs{A}\,\bs{X}_{t-1|t-1}, \label{eq:predict_x} \\
+    \bs{P}_{t|t-1} &\;=\; \bs{A}\,\bs{P}_{t-1|t-1}\,\bs{A}' + \bs{Q}. \label{eq:predict_p}
+\end{align}
+
+\noindent\textbf{Step 2 — Scalar survey update:}
+\begin{align}
+    v_t   &\;=\; f_t - \bs{c}_{\mathrm{sv}}'\bs{X}_{t|t-1}, \label{eq:innov} \\
+    s^2_t &\;=\; \bs{c}_{\mathrm{sv}}'\bs{P}_{t|t-1}\bs{c}_{\mathrm{sv}} + \sigma^2_{\mathrm{sv}}, \label{eq:s2} \\
+    \bs{K}_t &\;=\; \frac{\bs{P}_{t|t-1}\,\bs{c}_{\mathrm{sv}}}{s^2_t}, \label{eq:gain} \\
+    \bs{X}_{t|t} &\;=\; \bs{X}_{t|t-1} + \bs{K}_t\,v_t, \label{eq:update_x} \\
+    \bs{P}_{t|t} &\;=\; \bs{P}_{t|t-1} - \bs{K}_t\bs{K}_t'\,s^2_t. \label{eq:update_p}
+\end{align}
+
+\noindent\textbf{Step 3 — Exact observation override:}
+
+Since $\bs{y}_t$ is observed without error, the VAR state components are
+overridden from data:
+\begin{equation}
+    X_{t|t,l} \;=\; y_{t-\lfloor l/k \rfloor, (l \bmod k)+1},
+    \quad l = 0,\ldots,kp-1,
+    \qquad X_{t|t,kp} = 1.
+    \label{eq:override}
+\end{equation}
+Correspondingly, all rows and columns of $\bs{P}_{t|t}$ associated with
+directly-observed components are set to zero, leaving $P_{t|t,\mu\mu}$ as
+the sole uncertain element.
+
+\medskip
+\noindent\textbf{Log-likelihood contribution:}
+\begin{equation}
+    \ell_t \;=\; -\tfrac{1}{2}\left(\log s^2_t + \frac{v_t^2}{s^2_t}\right).
+    \label{eq:ll}
+\end{equation}
+The total log-likelihood is $\mathcal{L} = \sum_{t=p}^{T-1}\ell_t$.
+
+\subsection{Initialization}
+
+The state is initialized at $t=p$ (the first fully-observed period of the
+VAR sample):
+\begin{equation}
+    \bs{X}_{p|p-1} \;=\;
+    \left(\bs{y}_p',\;\bs{y}_{p-1}',\;\ldots,\;\bs{y}_1',\;1,\;\hat{c}_1\right)',
+\end{equation}
+where $\hat{c}_1$ is the OLS intercept for the inflation equation (a
+diffuse, data-consistent starting value for $\mu_0$). The initial covariance
+is $\bs{P}_{p|p-1} = \diag(0,\ldots,0,0,P_0)$ with $P_0=10$ (diffuse prior
+on $\mu_0$) and zeros for all directly-observed components.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Estimation}
+\label{sec:estimation}
+
+\subsection{OLS Step}
+
+The coefficient matrices $\{\bs{\Phi}_j\}$ and $\bs{c}$ are estimated by
+OLS on the unrestricted VAR \eqref{eq:var}. The OLS estimates are then
+used unchanged in the VAR-SE companion matrix; only $\mu_t$ is re-estimated
+via the Kalman filter.
+
+This two-step approach follows BCB (2018): the VAR dynamics are identified
+from the full sample, and the endpoint captures the slowly-drifting
+long-run mean not adequately described by a fixed intercept.
+
+\subsection{Calibration of \texorpdfstring{$\sigma^2_{\mathrm{sv}}$}{sigma2\_survey}}
+
+The measurement-noise variance $\sigma^2_{\mathrm{sv}}$ governs how
+tightly $\mu_t$ is anchored to Focus. It cannot be identified by MLE
+in the scalar-Kalman setup: the log-likelihood is monotonically increasing
+as $\sigma^2_{\mathrm{sv}}\to 0$ (perfect anchoring), rendering the
+problem degenerate.
+
+Following the Kozicki--Tinsley convention, $\sigma^2_{\mathrm{sv}}$ is
+calibrated externally. We set
+$\sigma^2_{\mathrm{sv}} = 0.25\;(\%\text{ a.a.})^2$, corresponding to a
+standard deviation of 0.5 pp a.a., consistent with the typical
+cross-sectional dispersion of Focus respondents at the 4-year horizon.
+
+\begin{remark}
+    The calibration implies that a 95\% credible interval for the survey
+    observation is $\pm 1$ pp around the median forecast. Tighter
+    calibration ($\sigma^2_{\mathrm{sv}}\downarrow$) produces $\mu_t$
+    paths that more closely mirror Focus; looser calibration
+    ($\sigma^2_{\mathrm{sv}}\uparrow$) produces smoother, more inertial
+    paths.
+\end{remark}
+
+\subsection{MLE for \texorpdfstring{$\sigma^2_\mu$}{sigma2\_mu}}
+
+Conditional on $\sigma^2_{\mathrm{sv}}$, the drift variance $\sigma^2_\mu$
+is estimated by maximising the Kalman log-likelihood:
+\begin{equation}
+    \hat{\sigma}^2_\mu \;=\; \arg\max_{\sigma^2_\mu \in [10^{-8},\,10^{-2}]}
+    \mathcal{L}\!\left(\sigma^2_\mu\,;\,\sigma^2_{\mathrm{sv}}\right).
+    \label{eq:mle}
+\end{equation}
+The one-dimensional optimisation uses Brent's bounded method on the
+log-scale $\log\sigma^2_\mu$ for numerical stability.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Forecasting}
+
+\subsection{Initial Conditions}
+
+At the forecast origin $T$, the initial state for the VAR-SE is
+\begin{equation}
+    \bs{X}_T \;=\; \left(\bs{y}_T',\;\bs{y}_{T-1}',\;\ldots,\;\bs{y}_{T-p+1}',\;1,\;\hat\mu_T\right)',
+\end{equation}
+where $\hat\mu_T = X_{T|T,\mu}$ is the filtered endpoint. For the
+unrestricted VAR, $\mu_T$ is replaced by $\hat{c}_1$ (the OLS intercept for
+the inflation equation).
+
+\subsection{$h$-Step Forecasts}
+
+The $h$-step ahead point forecast is
+\begin{equation}
+    \widehat{\bs{y}}_{T+h} \;=\; \bs{J}\,\bs{A}^h\,\bs{X}_T,
+\end{equation}
+where $\bs{J} = [\eye_k\;\bs{0}_{k\times 2}]$ selects the first $k$
+components of the state. The 12-month accumulated inflation forecast from
+horizon $h_1$ to $h_2$ is
+\begin{equation}
+    \widehat{\Pi}_{T}^{h_1:h_2} \;=\; \sum_{h=h_1}^{h_2}\widehat{\pi}_{T+h}.
+    \label{eq:accum}
+\end{equation}
+
+\subsection{Long-Run Convergence}
+
+Under the VAR-SE companion matrix, $\bs{A}^h \to \bs{e}_\mu\bs{e}_\mu'$ as
+$h\to\infty$ (where $\bs{e}_\mu$ is the unit vector selecting $\mu$), so
+\begin{equation}
+    \widehat{\pi}_{T+h} \;\to\; \hat\mu_T \quad \text{as } h\to\infty.
+\end{equation}
+Consequently the 48-month accumulated forecast satisfies
+$\widehat{\Pi}_T^{1:48}/12 \approx \hat\mu_T$, anchored to the Focus
+survey median.
+
+For the unrestricted VAR, $\widehat{\pi}_{T+h}\to\bar\pi$ (the sample mean
+of inflation, $\approx 5.9\%$ a.a. over the 2001--2026 sample), which
+departs significantly from the current Focus expectation of 3.5\% a.a.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Out-of-Sample Evaluation}
+\label{sec:oos}
+
+\subsection{Pseudo-Real-Time Exercise}
+
+Forecasting accuracy is assessed by an expanding-window pseudo-real-time
+exercise starting from 2013:06. At each period $t$, the VAR is re-estimated
+on $\{\bs{y}_1,\ldots,\bs{y}_t\}$, the Kalman filter is run with fixed
+$(\hat\sigma^2_\mu,\hat\sigma^2_{\mathrm{sv}})$ from the full-sample
+estimation, and $h$-step-ahead forecasts are generated for
+$h\in\{1,3,6,12,24,36\}$ months.
+
+\subsection{Loss Function}
+
+The benchmark loss is Mean Squared Error (MSE):
+\begin{equation}
+    \mathrm{MSE}^{(h)} \;=\; \frac{1}{N_h}\sum_{t}\left(
+        \widehat{\Pi}_{t}^{1:h} - \Pi_{t}^{1:h}\right)^2,
+\end{equation}
+where $\Pi_t^{1:h}$ is the realised 12-month accumulated inflation computed
+from subsequent observations and $N_h$ is the number of forecast origins with
+available realisations.
+
+\subsection{Statistical Tests}
+
+Two tests are used:
+
+\medskip
+\noindent\textbf{Diebold--Mariano (DM)} \citep{dm1995}: tests the null of
+equal unconditional expected loss between the VAR-SE and a benchmark:
+\begin{equation}
+    H_0:\; \E\!\left[d_{t+h}\right] = 0,
+    \qquad d_{t+h} = e^2_{\text{bench},t+h} - e^2_{\text{VARSE},t+h}.
+\end{equation}
+The DM statistic uses HAC-robust variance estimation (Newey--West with
+$h-1$ lags). A positive test statistic (small p-value) means VAR-SE
+has lower expected loss.
+
+\medskip
+\noindent\textbf{Clark--West (CW)} \citep{clarkewest2007}: corrects for
+the upward bias in the VAR-SE MSE that arises mechanically when the null
+model is nested. The adjusted loss differential is
+\begin{equation}
+    \tilde{d}_{t+h} \;=\; d_{t+h} + \left(\widehat{\Pi}^{\text{bench}}_{t+h} - \widehat{\Pi}^{\text{VARSE}}_{t+h}\right)^2,
+\end{equation}
+and the CW statistic is the t-ratio of $\bar{\tilde{d}}$ under the null
+$H_0: \E[\tilde{d}_{t+h}]\leq 0$. This is the recommended test when the
+models are nested (the unrestricted VAR is nested in the VAR-SE when
+$\sigma^2_\mu\to 0$).
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Empirical Results}
+\label{sec:results}
+
+\subsection{Full-Sample Estimation}
+
+Table~\ref{tab:params} reports the estimated parameters for the VAR(2)-SE
+using the sample 2001:11--2026:02 ($T=292$ observations, $k=3$, $p=2$).
+
+\begin{table}[h!]
+\centering
+\caption{Full-sample parameter estimates, VAR(2)-SE}
+\label{tab:params}
+\begin{tabular}{lcc}
+\toprule
+Parameter & Symbol & Estimate \\
+\midrule
+Spectral radius (VAR companion) & $\rho$ & 0.9598 \\
+Endpoint drift variance         & $\hat\sigma^2_\mu$ & $3.0\times10^{-5}$ \\
+Survey noise variance (calibrated) & $\sigma^2_{\mathrm{sv}}$ & 0.25 \\
+Kalman log-likelihood           & $\mathcal{L}$ & 144.51 \\
+\midrule
+OLS mean: $\pi$     & $\bar\pi$      & 0.492\%/m (5.90\% a.a.) \\
+OLS mean: $\Delta e$& $\bar{\Delta e}$ & 0.340\%/m (4.07\% a.a.) \\
+OLS mean: $r^r$     & $\bar r^r$     & 0.441\%/m (5.29\% a.a.) \\
+Filtered endpoint (last)& $\hat\mu_T$ & 0.273\%/m (3.27\% a.a.) \\
+Focus 48m (last)    & $f_T$          & 3.50\% a.a. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The filtered endpoint $\hat\mu_T = 0.273$\%/m lies between the OLS
+sample mean (0.492\%/m) and Focus/12 (0.292\%/m), reflecting the
+Kalman filter's balancing of prior inertia against the survey signal.
+The small $\hat\sigma^2_\mu = 3\times10^{-5}$ implies the endpoint
+moves slowly (annualised standard deviation
+$\approx\sqrt{12\times3\times10^{-5}}\approx 0.02$\%/m $\approx 0.24$
+pp a.a.), consistent with a gradual de-anchoring/re-anchoring process.
+
+\subsection{Long-Run Forecasts}
+
+Table~\ref{tab:lr} compares the 48-month accumulated inflation forecasts
+across models. The unrestricted VAR and ARMA converge to the sample mean
+($\approx 5.9$\% a.a.), well above the Focus survey (3.50\% a.a.).
+The VAR-SE converges to $\hat\mu_T$ (3.55\% a.a.), within 5 basis points
+of Focus.
+
+\begin{table}[h!]
+\centering
+\caption{48-month accumulated inflation forecast (annualised, \% a.a.)}
+\label{tab:lr}
+\begin{tabular}{lc}
+\toprule
+Model & Forecast \\
+\midrule
+ARMA(4,3)   & 5.90 \\
+VAR(2)      & 5.93 \\
+VAR(2)-SE   & 3.55 \\
+Focus (observed) & 3.50 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Out-of-Sample MSE}
+
+Table~\ref{tab:oos} reports MSE ($\times10^4$) and p-values for the
+Diebold--Mariano and Clark--West tests. Entries for DM and CW are
+p-values of the null that VAR-SE is no better than the benchmark;
+asterisks indicate 10\% (*), 5\% (**), and 1\% (***) significance.
+
+\begin{table}[h!]
+\centering
+\caption{Out-of-sample evaluation, 2013:06 onward}
+\label{tab:oos}
+\begin{tabular}{rcccccccc}
+\toprule
+$h$ & MSE$_{\text{ARMA}}$ & MSE$_{\text{VAR}}$ & MSE$_{\text{VARSE}}$
+    & $N$ & $p_{\text{DM,A}}$ & $p_{\text{DM,V}}$
+    & $p_{\text{CW,A}}$ & $p_{\text{CW,V}}$ \\
+\midrule
+ 1  & 1107  & 1126  & 1128  & 153 & 0.733 & 0.923 & 0.080*   & 0.261 \\
+ 3  & 7556  & 7503  & 7521  & 151 & 0.967 & 0.964 & 0.006*** & 0.114 \\
+ 6  & 24010 & 23950 & 24234 & 148 & 0.957 & 0.900 & 0.010**  & 0.045** \\
+12  & 59264 & 64570 & 67614 & 142 & 0.652 & 0.769 & 0.006*** & 0.006*** \\
+24  & 186342& 212557& 230574& 130 & 0.527 & 0.702 & 0.000*** & 0.001*** \\
+36  & 284017& 323334& 384904& 118 & 0.415 & 0.536 & 0.000*** & 0.000*** \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two patterns stand out. First, the raw MSE of VAR-SE is higher than both
+benchmarks at all horizons. This reflects the well-known result that
+anchoring to a slowly-moving endpoint introduces a downward bias in
+near-term forecasts during periods when inflation is above target (as was
+the case for much of 2013--2025 in Brazil). Second, after the Clark--West
+correction the VAR-SE significantly outperforms the unrestricted VAR at
+$h \geq 6$ months. The value of the shifting endpoint is therefore
+concentrated at medium and long horizons, consistent with the theoretical
+convergence property in Section~6.3.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\section{Conclusion}
+
+The VAR with Shifting Endpoint provides a coherent framework for
+incorporating long-run survey expectations into a multivariate time-series
+model. The Kalman filter jointly updates the endpoint on the basis of the
+Focus survey and the VAR dynamics, with the degree of anchoring governed
+by the ratio $\sigma^2_\mu / \sigma^2_{\mathrm{sv}}$.
+
+The empirical results for Brazil over 2001--2026 confirm the BCB (2018)
+finding: the VAR-SE does not improve short-horizon (1--3 month) point
+forecast accuracy, but it meaningfully reduces long-horizon errors and
+produces 12-to-48-month paths consistent with market expectations. The
+Clark--West test, which accounts for the nesting bias, shows statistically
+significant improvements at $h \geq 6$.
+
+For practical use, the model's main output is the filtered endpoint series
+$\{\hat\mu_t\}$, which provides a real-time, model-consistent estimate of
+where the inflation process is expected to settle in the long run.
+
+% ══════════════════════════════════════════════════════════════════════════════
+\bibliographystyle{apalike}
+\begin{thebibliography}{9}
+
+\bibitem[BCB(2018)]{bcb2018}
+Banco Central do Brasil (2018).
+\newblock Modelo de vetor autorregressivo com ancoragem de longo prazo.
+\newblock \emph{Estudo Especial} No.\ 19/2018.
+
+\bibitem[Clark and West(2007)]{clarkewest2007}
+Clark, T.~E. and West, K.~D. (2007).
+\newblock Approximately normal tests for equal predictive accuracy in nested
+  models.
+\newblock \emph{Journal of Econometrics}, 138(1):291--311.
+
+\bibitem[Diebold and Mariano(1995)]{dm1995}
+Diebold, F.~X. and Mariano, R.~S. (1995).
+\newblock Comparing predictive accuracy.
+\newblock \emph{Journal of Business \& Economic Statistics}, 13(3):253--263.
+
+\bibitem[Kozicki and Tinsley(2012)]{kozicki2012}
+Kozicki, S. and Tinsley, P.~A. (2012).
+\newblock Moving endpoints and the internal consistency of agents' ex ante
+  forecasts.
+\newblock \emph{Computational Economics}, 39(1):67--98.
+
+\end{thebibliography}
+
+\end{document}

@@ -3,21 +3,59 @@
 """
 VAR with Shifting Endpoint (VAR-SE)
 ====================================
-BCB Estudo Especial 19/2018 — Kozicki & Tinsley (2012)
+Replication of Areosa & Gaglianone (2018), BCB Estudo Especial 19/2018,
+following the Kozicki & Tinsley (2012) state-space framework.
 
-Replication of the BCB boxe methodology:
-  - 4-variable monthly VAR(2): IPCA livres, IPCA admin, Δ USD/BRL, juros real
-  - Shifting endpoint: inflation intercept μ_t follows a random walk
-  - Anchoring: μ_t pinned to Focus 48-month-ahead survey expectations
-  - Estimation: two-step (OLS VAR → Kalman filter MLE for noise variances)
-  - Evaluation: recursive OOS with Diebold-Mariano (1995) and Clark-West (2007)
+Model
+-----
+3-variable monthly VAR(p): [pi_total, Δ USD/BRL, juros real]
+  (BCB original used [pi_livres, pi_admin, dfx, r_real]; this variant uses
+   headline IPCA throughout to match the Focus anchor, which is also headline.)
+
+The inflation intercept μ_t is time-varying, following a random walk:
+  μ_t = μ_{t-1} + ε_t^μ,   ε_t^μ ~ N(0, σ²_μ)
+
+Estimation (two-step)
+---------------------
+1. OLS VAR(p) on the full sample → Φ₁, ..., Φ_p, intercept, Σ.
+   Stability is enforced by rescaling lag matrices if spectral radius > 0.96.
+
+2. Kalman filter MLE for σ²_μ, with σ²_survey calibrated externally at 0.25
+   (±0.5 pp std, consistent with Focus forecaster dispersion at 4yr horizon).
+   The filter treats y_t as exactly observed (override step) and uses the
+   Focus 48m survey as a scalar stochastic observation of the latent μ_t:
+
+     C_survey @ X_t = Σ_{h=37}^{48} J₁ @ A^h @ X_t  =  focus_t + η_t,
+                                                         η_t ~ N(0, σ²_survey)
+
+   This is the Kozicki-Tinsley observation equation — a soft equality, not a
+   hard pin. σ²_survey → 0 would recover the exact-pinning limit, but is not
+   used in either this code or the BCB paper.
+
+   Only σ²_μ is estimated by 1-D bounded MLE (log-scale, bounded [1e-8, 1e-2]).
+   σ²_survey is calibrated to avoid degeneracy (the MLE for σ²_survey is
+   monotonically decreasing toward 0 in the scalar Kalman).
+
+Deviation-from-endpoint parameterisation (varse=True)
+------------------------------------------------------
+  A[0, mu_idx] = 1 − Σ_j Φ_j[0,0]
+
+  Ensures lim_{h→∞} E[π_{t+h} | X_t] = μ_t exactly, so long-run forecasts
+  stabilise at the Focus anchor without amplification drift.
+
+Evaluation
+----------
+Recursive expanding-window OOS vs ARMA(4,3) and unrestricted VAR.
+Test statistics: Diebold-Mariano (1995), Clark-West (2007).
+Replicates BCB Table 1 (note: MSE units are (% a.m.)² here, vs decimal² × 1e4
+in the paper — test p-values and significance stars are scale-invariant).
 
 References
 ----------
 Areosa & Gaglianone (2018) — BCB Estudo Especial 19/2018
-Kozicki & Tinsley (2012) — JMCB 44: 145-169
-Diebold & Mariano (1995) — JBES 13: 253-265
-Clark & West (2007) — JE 138: 291-311
+Kozicki & Tinsley (2012)   — JMCB 44: 145-169
+Diebold & Mariano (1995)   — JBES 13: 253-265
+Clark & West (2007)        — JE 138: 291-311
 """
 
 import numpy as np
@@ -215,9 +253,10 @@ def enforce_stability(Phis: list, k: int, intercept: np.ndarray,
 #   [0:k]  = y_t  (directly observed, near-zero noise)
 #   [k]    = f_{t+H|t}  (Focus survey, % a.a. ≈ sum of 12 monthly forecasts)
 #
-# Observation constraint:
-#   C_survey @ X_t = J1 @ sum_{h=H-11}^{H} A^h @ X_t
-#   This sum of 12 monthly forecasts ≈ annual % (same units as Focus)
+# Observation equation (stochastic, Kozicki-Tinsley):
+#   C_survey @ X_t = J1 @ sum_{h=H-11}^{H} A^h @ X_t  =  focus_t + η_t
+#   This sum of 12 monthly forecasts ≈ annual % (same units as Focus).
+#   η_t ~ N(0, σ²_survey): measurement noise, calibrated externally.
 
 def build_state_noise(Sigma: np.ndarray, sigma2_mu: float, k: int, p: int) -> np.ndarray:
     """
@@ -402,16 +441,16 @@ def estimate_var_se(
     sigma2_survey: float = 0.25,   # calibrated: ±0.5 pp a.a. Focus dispersion
 ) -> tuple[float, float, np.ndarray, float]:
     """
-    Kalman-based VAR-SE estimation with anchored survey equation.
+    Estimate σ²_μ by Kalman filter MLE; σ²_survey is calibrated externally.
 
-    σ²_survey is calibrated externally (Kozicki-Tinsley convention) — the
-    MLE for σ²_survey is degenerate in the scalar Kalman because the
-    log-likelihood is monotonically increasing as σ²_survey → 0.
+    The MLE for σ²_survey is degenerate: the log-likelihood is monotonically
+    decreasing as σ²_survey increases, pushing the optimiser toward zero and
+    recovering the exact-pinning limit. To avoid this, σ²_survey is fixed at
+    0.25 (pp a.a.)², corresponding to ±0.5 pp std across Focus forecasters at
+    the 4yr horizon (consistent with Brazilian survey dispersion).
 
-    The default 0.25 (pp a.a.)² corresponds to ±0.5 pp std across Focus
-    forecasters at the 4yr horizon, consistent with Brazilian survey dispersion.
-
-    Only σ²_μ (μ random-walk drift) is estimated by 1-D bounded MLE.
+    Only σ²_μ (variance of the μ random-walk innovation) is estimated by
+    1-D bounded MLE on the log scale, bounds [log(1e-8), log(1e-2)].
 
     Returns (sigma2_mu, sigma2_survey, filtered_states (n, T-p), log_lik).
     """
@@ -433,59 +472,6 @@ def estimate_var_se(
     filtered, ll = kalman_filter(Y_endo, focus, A, C, mu0, s2_mu, s2_srv, p)
     return s2_mu, s2_srv, filtered, ll
 
-
-def pin_mu(Y: np.ndarray, focus_t: float,
-           A: np.ndarray, C: np.ndarray,
-           k: int, p: int, n: int, xbar_idx: int, mu_idx: int) -> float:
-    """
-    Directly solve for μ_T so the VAR-SE H-step forecast equals focus_t.
-
-    The survey constraint is an equality (BCB paper eq.):
-        C_survey @ X_T = focus_t
-
-    With X_T known except for μ_T, this is a single linear equation:
-        (C_survey @ X_T|μ=0) + C_survey[mu_idx] * μ_T = focus_t
-        → μ_T = (focus_t − C_survey @ X_T|μ=0) / C_survey[mu_idx]
-
-    No Kalman filter, no MLE — exact, numerically stable.
-    """
-    survey_row = C[-1]               # C_survey is the last row of C
-    c_mu = survey_row[mu_idx]        # scalar: sensitivity of forecast to μ
-
-    # Build observed state with μ = 0
-    X0 = np.zeros(n)
-    for lag in range(p):
-        X0[lag * k:(lag + 1) * k] = Y[-(1 + lag)]
-    X0[xbar_idx] = 1.0              # x_bar is always 1
-
-    mu_T = (focus_t - survey_row @ X0) / c_mu
-    return mu_T
-
-
-def compute_mu_path(Y: np.ndarray, focus: np.ndarray,
-                    A: np.ndarray, C: np.ndarray,
-                    k: int, p: int, n: int, xbar_idx: int, mu_idx: int) -> np.ndarray:
-    """
-    Compute the historical μ_t path by pinning at each date t.
-
-    μ_t directly reflects Focus long-run expectations corrected for the
-    current VAR state's contribution to the 37–48 month horizon.
-    The attenuation of the current state over ~40 steps means μ_t is
-    predominantly driven by focus_t, producing a smooth series.
-    """
-    T          = len(Y)
-    survey_row = C[-1]
-    c_mu       = survey_row[mu_idx]
-    mu_path    = np.full(T, np.nan)
-
-    for t in range(p, T):
-        X0 = np.zeros(n)
-        for lag in range(p):
-            X0[lag * k:(lag + 1) * k] = Y[t - lag]
-        X0[xbar_idx] = 1.0
-        mu_path[t] = (focus[t] - survey_row @ X0) / c_mu
-
-    return mu_path
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 5. FORECASTING
